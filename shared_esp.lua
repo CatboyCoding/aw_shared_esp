@@ -268,7 +268,6 @@ function handleGet(content)
 end
 
 function handlePost(content)
-    print(content);
     if (content == nil or content == "error") then
         return;
     end
