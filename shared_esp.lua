@@ -5,7 +5,7 @@ local NETWORK_GET_ADDR = "http://shady-aimware-api.cf/sharedesp";
 local SCRIPT_FILE_NAME = GetScriptName();
 local SCRIPT_FILE_ADDR = "https://raw.githubusercontent.com/hyperthegreat/aw_shared_esp/master/shared_esp.lua";
 local VERSION_FILE_ADDR = "https://raw.githubusercontent.com/hyperthegreat/aw_shared_esp/master/version.txt";
-local VERSION_NUMBER = "1.0.1";
+local VERSION_NUMBER = "1.0.2";
 
 local NETWORK_UPDATE_DELAY = 10;
 local NETWORK_RETRIEVE_DELAY = 20;
@@ -187,7 +187,9 @@ function drawExternalPlayers()
         if (found == false) then
             local screen_x, screen_y = client.WorldToScreen(entity.position.x, entity.position.y, entity.position.z);
             local w, h = draw.GetTextSize(entity.name);
-            draw.Text(screen_x - (w/2), screen_y - (h/2) - 10, entity.name);
+            if (screen_x ~= nil and w ~= nil) then
+                draw.Text(screen_x - (w / 2), screen_y - (h / 2) - 10, entity.name);
+            end
         end
     end
 end
@@ -398,7 +400,8 @@ function convertToQueryString()
                         entity.hp,
                         entity.maxHp,
                         entity.ping,
-                        entity.weapon
+                        entity.weapon,
+                        globals.CurTime()
                     }, "\t")));
             end
 
@@ -410,7 +413,8 @@ function convertToQueryString()
                         entity.position.x,
                         entity.position.y,
                         entity.position.z,
-                        entity.time
+                        entity.time,
+                        globals.CurTime()
                     }, "\t")));
             end
 
@@ -422,7 +426,8 @@ function convertToQueryString()
                         entity.position.x,
                         entity.position.y,
                         entity.position.z,
-                        entity.time
+                        entity.time,
+                        globals.CurTime()
                     }, "\t")));
             end
         end
