@@ -1,14 +1,19 @@
 -- Shared ESP by ShadyRetard
 
-local NETWORK_CLIENT_URL = "radar.shady-aimware-api.cf"
+local NETWORK_CLIENT_URL = "csgo-radar.cf"
 local NETWORK_GET_ADDR = "http://shady-aimware-api.cf/sharedesp";
 local SCRIPT_FILE_NAME = GetScriptName();
 local SCRIPT_FILE_ADDR = "https://raw.githubusercontent.com/hyperthegreat/aw_shared_esp/master/shared_esp.lua";
 local VERSION_FILE_ADDR = "https://raw.githubusercontent.com/hyperthegreat/aw_shared_esp/master/version.txt";
-local VERSION_NUMBER = "1.0.0";
+local VERSION_NUMBER = "1.0.1";
 
 local NETWORK_UPDATE_DELAY = 10;
 local NETWORK_RETRIEVE_DELAY = 20;
+
+local SHARED_ESP_ENABLE_TEAM_SHARE = gui.Checkbox(gui.Reference("MISC", "AUTOMATION", "Other"), "SHARED_ESP_ENABLE_TEAM_SHARE", "Shared ESP Team Location Sharing", false);
+local SHARED_ESP_ENABLE_MESSAGE = gui.Checkbox(gui.Reference("MISC", "AUTOMATION", "Other"), "SHARED_ESP_ENABLE_MESSAGE", "Shared ESP Link Sharing", false);
+local SHARED_ESP_MESSAGE_TEAM = gui.Checkbox(gui.Reference("MISC", "AUTOMATION", "Other"), "SHARED_ESP_MESSAGE_TEAM", "Shared ESP Global / Team message", false);
+local SHARED_ESP_MESSAGE_TEAM_TEXT = gui.Text(gui.Reference("MISC", "AUTOMATION", "Other"), "Shared ESP Message Disabled");
 
 local update_available = false;
 local last_update_sent = globals.TickCount();
@@ -21,7 +26,21 @@ local external_data = {};
 local molotov_data = {};
 local should_send_data = false;
 local last_rounds = 0;
+local has_shared_name = false;
 local share_name = "";
+local share_text = "";
+
+function uiUpdateHandler()
+    if (SHARED_ESP_MESSAGE_TEAM:GetValue() and share_text ~= "Shared ESP Global Message") then
+        has_shared_name = false;
+        share_text = "Shared ESP Global Message";
+        SHARED_ESP_MESSAGE_TEAM_TEXT:SetText("Shared ESP Global Message");
+    elseif (SHARED_ESP_MESSAGE_TEAM:GetValue() == false and share_text ~= "Shared ESP Team Message") then
+        has_shared_name = false;
+        share_text = "Shared ESP Team Message";
+        SHARED_ESP_MESSAGE_TEAM_TEXT:SetText("Shared ESP Team Message");
+    end
+end
 
 function updateEventHandler()
     if (update_available and not update_downloaded) then
@@ -101,37 +120,41 @@ function addPlayers()
     for i = 1, #players do
         local player = players[i];
 
-        local dead = "false";
-        if (not player:IsAlive()) then
-            dead = "true";
+        local self = entities.GetLocalPlayer();
+        if (SHARED_ESP_ENABLE_TEAM_SHARE:GetValue() or (self ~= nil and player:GetTeamNumber() ~= self:GetTeamNumber())) then
+
+            local dead = "false";
+            if (not player:IsAlive()) then
+                dead = "true";
+            end
+
+            local weapon_name = "none";
+            local weapon = player:GetPropEntity('m_hActiveWeapon');
+            if (weapon ~= nil) then
+                weapon_name = weapon:GetName();
+            end
+
+            local px, py, pz = player:GetAbsOrigin();
+            local angle = player:GetPropFloat("m_angEyeAngles[1]");
+
+            table.insert(entity_data, {
+                type = 'player',
+                index = player:GetIndex(),
+                team = player:GetTeamNumber(),
+                name = player:GetName(),
+                isDead = dead,
+                position = {
+                    x = px,
+                    y = py,
+                    z = pz,
+                    angle = angle
+                },
+                hp = player:GetHealth(),
+                maxHp = player:GetMaxHealth(),
+                ping = entities.GetPlayerResources():GetPropInt("m_iPing", player:GetIndex());
+                weapon = weapon_name
+            });
         end
-
-        local weapon_name = "none";
-        local weapon = player:GetPropEntity('m_hActiveWeapon');
-        if (weapon ~= nil) then
-            weapon_name = weapon:GetName();
-        end
-
-        local px, py, pz = player:GetAbsOrigin();
-        local angle = player:GetPropFloat("m_angEyeAngles[1]");
-
-        table.insert(entity_data, {
-            type = 'player',
-            index = player:GetIndex(),
-            team = player:GetTeamNumber(),
-            name = player:GetName(),
-            isDead = dead,
-            position = {
-                x = px,
-                y = py,
-                z = pz,
-                angle = angle
-            },
-            hp = player:GetHealth(),
-            maxHp = player:GetMaxHealth(),
-            ping = entities.GetPlayerResources():GetPropInt("m_iPing", player:GetIndex());
-            weapon = weapon_name
-        });
     end
 end
 
@@ -162,9 +185,9 @@ function drawExternalPlayers()
         end
 
         if (found == false) then
-            -- TODO: Proper ESP instead of just the name
             local screen_x, screen_y = client.WorldToScreen(entity.position.x, entity.position.y, entity.position.z);
-            draw.Text(screen_x, screen_y, entity.name);
+            local w, h = draw.GetTextSize(entity.name);
+            draw.Text(screen_x - (w/2), screen_y - (h/2) - 10, entity.name);
         end
     end
 end
@@ -274,7 +297,21 @@ function handlePost(content)
 
     if (share_name ~= content) then
         share_name = content;
-        client.ChatTeamSay("Live game radar at " .. NETWORK_CLIENT_URL .. "/" .. share_name);
+        has_shared_name = false;
+        print("Live game radar at " .. NETWORK_CLIENT_URL .. "/" .. share_name);
+
+        if (SHARED_ESP_ENABLE_MESSAGE:GetValue() == false) then
+            return;
+        end
+    end
+
+    if (SHARED_ESP_ENABLE_MESSAGE:GetValue() == true and has_shared_name == false) then
+        if (SHARED_ESP_MESSAGE_TEAM:GetValue() == true) then
+            client.ChatSay("Live game radar at " .. NETWORK_CLIENT_URL .. "/" .. share_name);
+        else
+            client.ChatTeamSay("Live game radar at " .. NETWORK_CLIENT_URL .. "/" .. share_name);
+        end
+        has_shared_name = true;
     end
 end
 
@@ -311,7 +348,7 @@ function convertToTable(content)
         table.insert(strings_to_parse, i);
     end
 
-    for i=1, #strings_to_parse do
+    for i = 1, #strings_to_parse do
         local matches = {};
 
         for word in string.gmatch(strings_to_parse[i], "([^\t]*)") do
@@ -423,6 +460,7 @@ client.AllowListener("round_start");
 client.AllowListener("round_end");
 client.AllowListener("inferno_expire");
 client.AllowListener("inferno_extinguish");
+callbacks.Register("Draw", uiUpdateHandler);
 callbacks.Register("Draw", updateEventHandler);
 callbacks.Register("Draw", drawEntitiesHandler);
 callbacks.Register("FireGameEvent", gameEventHandler);
