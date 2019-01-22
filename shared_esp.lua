@@ -5,7 +5,7 @@ local NETWORK_GET_ADDR = "http://shady-aimware-api.cf/sharedesp";
 local SCRIPT_FILE_NAME = GetScriptName();
 local SCRIPT_FILE_ADDR = "https://raw.githubusercontent.com/hyperthegreat/aw_shared_esp/master/shared_esp.lua";
 local VERSION_FILE_ADDR = "https://raw.githubusercontent.com/hyperthegreat/aw_shared_esp/master/version.txt";
-local VERSION_NUMBER = "1.0.2";
+local VERSION_NUMBER = "1.0.3";
 
 local NETWORK_UPDATE_DELAY = 10;
 local NETWORK_RETRIEVE_DELAY = 20;
@@ -31,6 +31,10 @@ local share_name = "";
 local share_text = "";
 
 function uiUpdateHandler()
+    if (SHARED_ESP_ENABLE_MESSAGE:GetValue() == false and has_shared_name) then
+        has_shared_name = false;
+    end
+
     if (SHARED_ESP_MESSAGE_TEAM:GetValue() and share_text ~= "Shared ESP Global Message") then
         has_shared_name = false;
         share_text = "Shared ESP Global Message";
@@ -121,7 +125,8 @@ function addPlayers()
         local player = players[i];
 
         local self = entities.GetLocalPlayer();
-        if (SHARED_ESP_ENABLE_TEAM_SHARE:GetValue() or (self ~= nil and player:GetTeamNumber() ~= self:GetTeamNumber())) then
+        local share_enabled = SHARED_ESP_ENABLE_TEAM_SHARE:GetValue();
+        if (self == nil or share_enabled == true or (share_enabled == false and (player:GetTeamNumber() ~= self:GetTeamNumber()))) then
 
             local dead = "false";
             if (not player:IsAlive()) then
