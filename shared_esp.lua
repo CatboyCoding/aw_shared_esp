@@ -5,7 +5,7 @@ local NETWORK_GET_ADDR = "http://shady-aimware-api.cf/sharedesp";
 local SCRIPT_FILE_NAME = GetScriptName();
 local SCRIPT_FILE_ADDR = "https://raw.githubusercontent.com/hyperthegreat/aw_shared_esp/master/shared_esp.lua";
 local VERSION_FILE_ADDR = "https://raw.githubusercontent.com/hyperthegreat/aw_shared_esp/master/version.txt";
-local VERSION_NUMBER = "1.0.3";
+local VERSION_NUMBER = "1.0.4";
 
 local NETWORK_UPDATE_DELAY = 10;
 local NETWORK_RETRIEVE_DELAY = 20;
@@ -24,7 +24,7 @@ local update_downloaded = false;
 local entity_data = {};
 local external_data = {};
 local molotov_data = {};
-local should_send_data = false;
+local should_send_data = true;
 local last_rounds = 0;
 local has_shared_name = false;
 local share_name = "";
