@@ -1,11 +1,11 @@
 -- Shared ESP by ShadyRetard
 
-local NETWORK_CLIENT_URL = "csgo-radar.cf"
-local NETWORK_GET_ADDR = "http://shady-aimware-api.cf/sharedesp";
+local NETWORK_CLIENT_URL = "radar.shadyretard.io"
+local NETWORK_GET_ADDR = "http://eu1.shadyretard.io/sharedesp";
 local SCRIPT_FILE_NAME = GetScriptName();
 local SCRIPT_FILE_ADDR = "https://raw.githubusercontent.com/hyperthegreat/aw_shared_esp/master/shared_esp.lua";
 local VERSION_FILE_ADDR = "https://raw.githubusercontent.com/hyperthegreat/aw_shared_esp/master/version.txt";
-local VERSION_NUMBER = "1.0.4";
+local VERSION_NUMBER = "1.0.5";
 
 local NETWORK_UPDATE_DELAY = 10;
 local NETWORK_RETRIEVE_DELAY = 20;
@@ -15,11 +15,11 @@ local SHARED_ESP_ENABLE_MESSAGE = gui.Checkbox(gui.Reference("MISC", "AUTOMATION
 local SHARED_ESP_MESSAGE_TEAM = gui.Checkbox(gui.Reference("MISC", "AUTOMATION", "Other"), "SHARED_ESP_MESSAGE_TEAM", "Shared ESP Global / Team message", false);
 local SHARED_ESP_MESSAGE_TEAM_TEXT = gui.Text(gui.Reference("MISC", "AUTOMATION", "Other"), "Shared ESP Message Disabled");
 
-local update_available = false;
 local last_update_sent = globals.TickCount();
 local last_update_retrieved = globals.TickCount();
 local version_check_done = false;
 local update_downloaded = false;
+local update_available = false;
 
 local entity_data = {};
 local external_data = {};
