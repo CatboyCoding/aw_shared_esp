@@ -1,14 +1,15 @@
 -- Shared ESP by ShadyRetard
 
 local NETWORK_CLIENT_URL = "radar.shadyretard.io"
-local NETWORK_GET_ADDR = "http://eu1.shadyretard.io/sharedesp";
+local NETWORK_API_ADDR = "http://api.shadyretard.io";
+local SHAREDESP_CLOSEST_ADDR = NETWORK_API_ADDR;
 local SCRIPT_FILE_NAME = GetScriptName();
 local SCRIPT_FILE_ADDR = "https://raw.githubusercontent.com/hyperthegreat/aw_shared_esp/master/shared_esp.lua";
 local VERSION_FILE_ADDR = "https://raw.githubusercontent.com/hyperthegreat/aw_shared_esp/master/version.txt";
-local VERSION_NUMBER = "1.0.5";
+local VERSION_NUMBER = "1.0.6";
 
-local NETWORK_UPDATE_DELAY = 10;
-local NETWORK_RETRIEVE_DELAY = 20;
+local NETWORK_UPDATE_DELAY = 25;
+local NETWORK_RETRIEVE_DELAY = 35;
 
 local SHARED_ESP_ENABLE_TEAM_SHARE = gui.Checkbox(gui.Reference("MISC", "AUTOMATION", "Other"), "SHARED_ESP_ENABLE_TEAM_SHARE", "Shared ESP Team Location Sharing", false);
 local SHARED_ESP_ENABLE_MESSAGE = gui.Checkbox(gui.Reference("MISC", "AUTOMATION", "Other"), "SHARED_ESP_ENABLE_MESSAGE", "Shared ESP Link Sharing", false);
@@ -29,6 +30,57 @@ local last_rounds = 0;
 local has_shared_name = false;
 local share_name = "";
 local share_text = "";
+
+local available_api_servers;
+local server_retrieval_started = false;
+local server_picker_done = false;
+
+local server_latencies = {};
+
+function serverPickerHandler()
+    if (server_retrieval_started == false and (available_api_servers == nil or #available_api_servers == 0)) then
+        server_retrieval_started = true;
+        http.Get(NETWORK_API_ADDR .. "/routing/servers", function(response)
+            if (response == nil or response == "error") then
+                server_retrieval_started = false;
+                return;
+            end
+
+            available_api_servers = {};
+            for word in string.gmatch(response, "[^,]+") do
+                table.insert(available_api_servers, word);
+            end
+
+            for i=1, #available_api_servers do
+                http.Get(available_api_servers[i] .. "/routing/latency?time=" .. globals.CurTime(), function(latency_response)
+                    local latency;
+                    if (latency_response == nil or latency_response == "error") then
+                        latency = "error"
+                    else
+                        latency = globals.CurTime() - latency_response;
+                    end
+                    table.insert(server_latencies, {
+                        name = available_api_servers[i],
+                        latency = latency;
+                    });
+
+                    if (#server_latencies == #available_api_servers) then
+                        local lowest_latency_server = NETWORK_API_ADDR;
+                        local lowest_latency = 99999;
+                        for y=1, #server_latencies do
+                            if (server_latencies[y].latency < lowest_latency) then
+                                lowest_latency = server_latencies[y].latency;
+                                lowest_latency_server = server_latencies[y].name
+                            end
+                        end
+                        SHAREDESP_CLOSEST_ADDR = lowest_latency_server;
+                        server_picker_done = true;
+                    end
+                end);
+            end
+        end);
+    end
+end
 
 function uiUpdateHandler()
     if (SHARED_ESP_ENABLE_MESSAGE:GetValue() == false and has_shared_name) then
@@ -83,7 +135,7 @@ function updateEventHandler()
 end
 
 function drawEntitiesHandler()
-    if (engine.GetServerIP() == nil) then
+    if (engine.GetServerIP() == nil or server_picker_done == false) then
         return;
     end
 
@@ -109,12 +161,12 @@ function drawEntitiesHandler()
     end
 
     if (globals.TickCount() - last_update_retrieved > NETWORK_RETRIEVE_DELAY) then
-        http.Get(NETWORK_GET_ADDR .. "?ip=" .. urlencode(engine.GetServerIP()), handleGet);
+        http.Get(SHAREDESP_CLOSEST_ADDR .. "/sharedesp" .. "?ip=" .. urlencode(engine.GetServerIP()), handleGet);
         last_update_retrieved = globals.TickCount();
     end
 
     if (globals.TickCount() - last_update_sent > NETWORK_UPDATE_DELAY) then
-        http.Get(NETWORK_GET_ADDR .. "/update" .. convertToQueryString(), handlePost);
+        http.Get(SHAREDESP_CLOSEST_ADDR .. "/sharedesp" .. "/update" .. convertToQueryString(), handlePost);
         last_update_sent = globals.TickCount();
     end
 end
@@ -323,6 +375,10 @@ function handlePost(content)
 end
 
 function gameEventHandler(event)
+    if (server_picker_done == false) then
+        return;
+    end
+
     if (event:GetName() == "round_start") then
         should_send_data = true;
         entity_data = {
@@ -331,7 +387,7 @@ function gameEventHandler(event)
                 position = {}
             }
         };
-        http.Get(NETWORK_GET_ADDR .. convertToQueryString());
+        http.Get(SHAREDESP_CLOSEST_ADDR .. "/sharedesp" .. convertToQueryString());
     end
 
     if (event:GetName() == "round_end") then
@@ -470,6 +526,7 @@ client.AllowListener("round_start");
 client.AllowListener("round_end");
 client.AllowListener("inferno_expire");
 client.AllowListener("inferno_extinguish");
+callbacks.Register("Draw", serverPickerHandler);
 callbacks.Register("Draw", uiUpdateHandler);
 callbacks.Register("Draw", updateEventHandler);
 callbacks.Register("Draw", drawEntitiesHandler);
