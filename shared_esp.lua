@@ -1,26 +1,29 @@
 -- Shared ESP by ShadyRetard
-
+-- V5 Support by GenoSans
 local NETWORK_CLIENT_URL = "radar.shadyretard.io"
 local NETWORK_API_ADDR = "http://api.shadyretard.io";
 local SHAREDESP_CLOSEST_ADDR = NETWORK_API_ADDR;
 local SCRIPT_FILE_NAME = GetScriptName();
-local SCRIPT_FILE_ADDR = "https://raw.githubusercontent.com/hyperthegreat/aw_shared_esp/master/shared_esp.lua";
-local VERSION_FILE_ADDR = "https://raw.githubusercontent.com/hyperthegreat/aw_shared_esp/master/version.txt";
-local VERSION_NUMBER = "1.0.6";
 
-local NETWORK_UPDATE_DELAY = 25;
-local NETWORK_RETRIEVE_DELAY = 35;
+local window = gui.Window("shared_esp", "Shared ESP", 50, 50, 250, 210)
 
-local SHARED_ESP_ENABLE_TEAM_SHARE = gui.Checkbox(gui.Reference("MISC", "AUTOMATION", "Other"), "SHARED_ESP_ENABLE_TEAM_SHARE", "Shared ESP Team Location Sharing", false);
-local SHARED_ESP_ENABLE_MESSAGE = gui.Checkbox(gui.Reference("MISC", "AUTOMATION", "Other"), "SHARED_ESP_ENABLE_MESSAGE", "Shared ESP Link Sharing", false);
-local SHARED_ESP_MESSAGE_TEAM = gui.Checkbox(gui.Reference("MISC", "AUTOMATION", "Other"), "SHARED_ESP_MESSAGE_TEAM", "Shared ESP Global / Team message", false);
-local SHARED_ESP_MESSAGE_TEAM_TEXT = gui.Text(gui.Reference("MISC", "AUTOMATION", "Other"), "Shared ESP Message Disabled");
+local retrieve_delay = gui.Slider(window, "retrieve_delay", "Update Delay", 25, 25, 100);
+local update_delay = gui.Slider(window, "update_delay", "Retrieve Delay", 35, 35, 100);
+
+local message_team = gui.Combobox(window, "message_team", "Link Sharing", "None", "Team", "Global");
+
+local link_url = "No radar available.";
+local link_text = gui.Text(window, "No radar available.");
+
+local ok = false;
+
+function updateWindowHandler()
+    
+    window:SetActive(gui.Reference("MENU"):IsActive())
+end
 
 local last_update_sent = globals.TickCount();
 local last_update_retrieved = globals.TickCount();
-local version_check_done = false;
-local update_downloaded = false;
-local update_available = false;
 
 local entity_data = {};
 local external_data = {};
@@ -82,58 +85,6 @@ function serverPickerHandler()
     end
 end
 
-function uiUpdateHandler()
-    if (SHARED_ESP_ENABLE_MESSAGE:GetValue() == false and has_shared_name) then
-        has_shared_name = false;
-    end
-
-    if (SHARED_ESP_MESSAGE_TEAM:GetValue() and share_text ~= "Shared ESP Global Message") then
-        has_shared_name = false;
-        share_text = "Shared ESP Global Message";
-        SHARED_ESP_MESSAGE_TEAM_TEXT:SetText("Shared ESP Global Message");
-    elseif (SHARED_ESP_MESSAGE_TEAM:GetValue() == false and share_text ~= "Shared ESP Team Message") then
-        has_shared_name = false;
-        share_text = "Shared ESP Team Message";
-        SHARED_ESP_MESSAGE_TEAM_TEXT:SetText("Shared ESP Team Message");
-    end
-end
-
-function updateEventHandler()
-    if (update_available and not update_downloaded) then
-        if (gui.GetValue("lua_allow_cfg") == false) then
-            draw.Color(255, 0, 0, 255);
-            draw.Text(0, 0, "[SHARED ESP] An update is available, please enable Lua Allow Config and Lua Editing in the settings tab");
-        else
-            local new_version_content = http.Get(SCRIPT_FILE_ADDR);
-            local old_script = file.Open(SCRIPT_FILE_NAME, "w");
-            old_script:Write(new_version_content);
-            old_script:Close();
-            update_available = false;
-            update_downloaded = true;
-        end
-    end
-
-    if (update_downloaded) then
-        draw.Color(255, 0, 0, 255);
-        draw.Text(0, 0, "[SHARED ESP] An update has automatically been downloaded, please reload the shared esp script");
-        return;
-    end
-
-    if (not version_check_done) then
-        if (gui.GetValue("lua_allow_http") == false) then
-            draw.Color(255, 0, 0, 255);
-            draw.Text(0, 0, "[SHARED ESP] Please enable Lua HTTP Connections in your settings tab to use this script");
-            return;
-        end
-
-        version_check_done = true;
-        local version = http.Get(VERSION_FILE_ADDR);
-        if (version ~= VERSION_NUMBER) then
-            update_available = true;
-        end
-    end
-end
-
 function drawEntitiesHandler()
     if (engine.GetServerIP() == nil or server_picker_done == false) then
         return;
@@ -160,12 +111,12 @@ function drawEntitiesHandler()
         return;
     end
 
-    if (globals.TickCount() - last_update_retrieved > NETWORK_RETRIEVE_DELAY) then
+    if (globals.TickCount() - last_update_retrieved > retrieve_delay:GetValue()) then
         http.Get(SHAREDESP_CLOSEST_ADDR .. "/sharedesp" .. "?ip=" .. urlencode(engine.GetServerIP()), handleGet);
         last_update_retrieved = globals.TickCount();
     end
 
-    if (globals.TickCount() - last_update_sent > NETWORK_UPDATE_DELAY) then
+    if (globals.TickCount() - last_update_sent > update_delay:GetValue()) then
         http.Get(SHAREDESP_CLOSEST_ADDR .. "/sharedesp" .. "/update" .. convertToQueryString(), handlePost);
         last_update_sent = globals.TickCount();
     end
@@ -176,42 +127,47 @@ function addPlayers()
     for i = 1, #players do
         local player = players[i];
 
-        local self = entities.GetLocalPlayer();
-        local share_enabled = SHARED_ESP_ENABLE_TEAM_SHARE:GetValue();
-        if (self == nil or share_enabled == true or (share_enabled == false and (player:GetTeamNumber() ~= self:GetTeamNumber()))) then
+        local self == entities.GetLocalPlayer();
 
-            local dead = "false";
-            if (not player:IsAlive()) then
-                dead = "true";
-            end
+        if(self ~= nil && player:GetTeamNumber() == self:GetTeamNumber()) continue
 
-            local weapon_name = "none";
-            local weapon = player:GetPropEntity('m_hActiveWeapon');
-            if (weapon ~= nil) then
-                weapon_name = weapon:GetName();
-            end
-
-            local px, py, pz = player:GetAbsOrigin();
-            local angle = player:GetPropFloat("m_angEyeAngles[1]");
-
-            table.insert(entity_data, {
-                type = 'player',
-                index = player:GetIndex(),
-                team = player:GetTeamNumber(),
-                name = player:GetName(),
-                isDead = dead,
-                position = {
-                    x = px,
-                    y = py,
-                    z = pz,
-                    angle = angle
-                },
-                hp = player:GetHealth(),
-                maxHp = player:GetMaxHealth(),
-                ping = entities.GetPlayerResources():GetPropInt("m_iPing", player:GetIndex());
-                weapon = weapon_name
-            });
+        local dead = "false";
+        if (not player:IsAlive()) then
+            dead = "true";
         end
+        
+        local weapon_name = "weapon_none";
+        local weapon = player:GetPropEntity('m_hActiveWeapon');
+        if (weapon ~= nil) then
+            weapon_name = weapon:GetName();
+        end
+        
+        if(weapon_name == nil) then
+            weapon_name = "weapon_unknown"
+        end
+
+        weapon_name = string.gsub(weapon_name, "weapon_", "")
+        
+        local p = player:GetAbsOrigin();
+        local angle = player:GetPropFloat("m_angEyeAngles[1]");
+        
+        table.insert(entity_data, {
+            type = 'player',
+            index = player:GetIndex(),
+            team = player:GetTeamNumber(),
+            name = player:GetName(),
+            isDead = dead,
+            position = {
+                x = p.x,
+                y = p.y,
+                z = p.z,
+                angle = angle
+            },
+            hp = player:GetHealth(),
+            maxHp = player:GetMaxHealth(),
+            ping = entities.GetPlayerResources():GetPropInt("m_iPing", player:GetIndex());
+            weapon = weapon_name
+        });
     end
 end
 
@@ -242,6 +198,10 @@ function drawExternalPlayers()
         end
 
         if (found == false) then
+            if(entity == nil or entity.position == nil or entity.position.x == nil) then
+                return
+            end
+
             local screen_x, screen_y = client.WorldToScreen(entity.position.x, entity.position.y, entity.position.z);
             local w, h = draw.GetTextSize(entity.name);
             if (screen_x ~= nil and w ~= nil) then
@@ -357,18 +317,19 @@ function handlePost(content)
     if (share_name ~= content) then
         share_name = content;
         has_shared_name = false;
-        print("Live game radar at " .. NETWORK_CLIENT_URL .. "/" .. share_name);
+        link_url = NETWORK_CLIENT_URL .. "/" .. share_name;
+        link_text:SetText(link_url);
 
-        if (SHARED_ESP_ENABLE_MESSAGE:GetValue() == false) then
+        if (message_team:GetValue() == "None") then
             return;
         end
     end
 
-    if (SHARED_ESP_ENABLE_MESSAGE:GetValue() == true and has_shared_name == false) then
-        if (SHARED_ESP_MESSAGE_TEAM:GetValue() == true) then
-            client.ChatSay("Live game radar at " .. NETWORK_CLIENT_URL .. "/" .. share_name);
-        else
-            client.ChatTeamSay("Live game radar at " .. NETWORK_CLIENT_URL .. "/" .. share_name);
+    if (has_shared_name == false) then
+        if (message_team:GetValue() == "Team") then
+            client.ChatTeamSay("Live game radar @ " .. link_url);
+        elseif (message_team:GetValue() == "Global") then
+            client.ChatSay("Live game radar @ " .. link_url);
         end
         has_shared_name = true;
     end
@@ -391,6 +352,8 @@ function gameEventHandler(event)
     end
 
     if (event:GetName() == "round_end") then
+        link_url = "No radar available.";
+        link_text:SetText(link_url);
         should_send_data = false;
     end
 
@@ -445,8 +408,8 @@ function convertToQueryString()
     local queryString = "&data[]=";
     for i, entity in ipairs(entity_data) do
         if (entity ~= nil) then
-
             if (entity.type == "player") then
+                if(entity.weapon == nil) then entity.weapon = "wtf" end
                 table.insert(temp,
                     urlencode(table.concat({
                         entity.type,
@@ -527,7 +490,6 @@ client.AllowListener("round_end");
 client.AllowListener("inferno_expire");
 client.AllowListener("inferno_extinguish");
 callbacks.Register("Draw", serverPickerHandler);
-callbacks.Register("Draw", uiUpdateHandler);
-callbacks.Register("Draw", updateEventHandler);
 callbacks.Register("Draw", drawEntitiesHandler);
+callbacks.Register("Draw", updateWindowHandler);
 callbacks.Register("FireGameEvent", gameEventHandler);
